@@ -1,0 +1,69 @@
+name: osm-map-quality-env
+version: "1.0.0"
+description: >
+  A real-world OpenStreetMap (OSM) data quality checking environment.
+  An AI agent inspects map feature records and fixes data quality issues
+  such as missing tags, invalid coordinates, and conflicting attributes.
+author: dokka vijay
+email: helloaavijay@gmail.com
+
+environment:
+  type: http
+  port: 8000
+
+action:
+  type: object
+  fields:
+    action_type:
+      type: string
+      enum: [set_tag, remove_tag, fix_coordinates, merge_duplicate, flag_invalid, mark_complete]
+    tag_key:
+      type: string
+      required: false
+    tag_value:
+      type: string
+      required: false
+    coordinates:
+      type: object
+      required: false
+    confidence:
+      type: number
+
+observation:
+  type: object
+  fields:
+    feature_id: {type: string}
+    feature_type: {type: string}
+    current_tags: {type: object}
+    issues_remaining: {type: integer}
+    feedback: {type: string}
+    reward: {type: number}
+    done: {type: boolean}
+    task_id: {type: string}
+    step_count: {type: integer}
+
+tasks:
+  - id: task_easy
+    name: Missing Name Tag Fix
+    difficulty: easy
+    max_steps: 10
+    score_range: [0.0, 1.0]
+  - id: task_medium
+    name: Multi-Field Address Completion
+    difficulty: medium
+    max_steps: 20
+    score_range: [0.0, 1.0]
+  - id: task_hard
+    name: Duplicate and Conflicting Feature Resolution
+    difficulty: hard
+    max_steps: 30
+    score_range: [0.0, 1.0]
+
+endpoints:
+  step: POST /step
+  reset: POST /reset
+  state: GET /state
+  tasks: GET /tasks
+  grader: POST /grader
+  baseline: POST /baseline
+  health: GET /health
