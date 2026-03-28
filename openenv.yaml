@@ -9,7 +9,7 @@ email: helloaavijay@gmail.com
 
 environment:
   type: http
-  port: 8000
+  port: 7860
 
 action:
   type: object
