@@ -19,11 +19,11 @@ COPY . /app/
 RUN touch /app/__init__.py
 
 # Expose port
-EXPOSE 8000
+EXPOSE 7860
 
 # Health check - required for OpenEnv compliance
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+  CMD curl -f http://localhost:7860/health || exit 1
 
 # Run the FastAPI server
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
