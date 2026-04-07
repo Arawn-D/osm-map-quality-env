@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "osm-map-quality-env"
@@ -14,9 +14,16 @@ dependencies = [
     "requests>=2.28.0",
     "openai>=1.0.0",
     "pydantic>=2.0.0",
+    "openenv-core>=0.2.0",
 ]
+
+[project.scripts]
+server = "server.main:app"
 
 [tool.openenv]
 env_class = "server.environment:OSMMapQualityEnvironment"
 env_id = "osm-map-quality-env"
 version = "1.0.0"
+
+[tool.hatch.build.targets.wheel]
+packages = ["server"]
