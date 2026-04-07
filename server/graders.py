@@ -1,19 +1,15 @@
 from typing import Dict, Any
 
-# Score bounds: STRICTLY between 0.0 and 1.0
-# Min = 0.05 (attempted but nothing correct)
-# Max = 0.95 (excellent but always room for improvement)
 SCORE_MIN = 0.05
 SCORE_MAX = 0.95
 
 
 def clamp(score: float) -> float:
-    """Clamp score to strictly (0.0, 1.0) - never exactly 0.0 or 1.0."""
     return max(SCORE_MIN, min(SCORE_MAX, round(float(score), 4)))
 
 
 def grade_easy(episode: Dict[str, Any]) -> float:
-    """Task Easy: Set the name tag on a cafe. Score 0.05-0.95."""
+    """Score based on whether the name tag is set on a cafe feature."""
     tags = episode.get("current_tags", {})
     name = tags.get("name", "").strip()
     if not name:
@@ -24,58 +20,62 @@ def grade_easy(episode: Dict[str, Any]) -> float:
 
 
 def grade_medium(episode: Dict[str, Any]) -> float:
-    """Task Medium: Add opening hours + website to a shop. Score 0.05-0.95."""
+    """Score based on how many address fields were correctly filled."""
     tags = episode.get("current_tags", {})
     score = 0.05
-    has_hours = bool(tags.get("opening_hours", "").strip())
-    has_website = bool(tags.get("website", "").strip())
-    has_phone = bool(tags.get("phone", "").strip())
-    has_name = bool(tags.get("name", "").strip())
-
-    if has_name:
-        score += 0.15
-    if has_hours:
-        score += 0.35
-    if has_website:
-        score += 0.25
-    if has_phone:
-        score += 0.10
-
+    fields = {
+        "addr:street": 0.25,
+        "addr:city": 0.25,
+        "addr:postcode": 0.25,
+        "addr:country": 0.15,
+    }
+    for key, weight in fields.items():
+        if tags.get(key, "").strip():
+            score += weight
     return clamp(score)
 
 
 def grade_hard(episode: Dict[str, Any]) -> float:
-    """Task Hard: Fully tag a medical facility. Score 0.05-0.95."""
+    """Score based on tag completeness and coordinate fix for a hospital feature."""
     tags = episode.get("current_tags", {})
+    coords = episode.get("coordinates", {})
+    merged = episode.get("duplicate_merged", False)
+
     score = 0.05
 
-    required = {
+    tag_weights = {
         "name": 0.15,
         "amenity": 0.10,
-        "healthcare": 0.15,
-        "opening_hours": 0.10,
-        "phone": 0.10,
-        "website": 0.10,
+        "addr:city": 0.10,
         "addr:street": 0.10,
-        "addr:city": 0.05,
-        "emergency": 0.05,
+        "website": 0.10,
+        "phone": 0.05,
     }
-
-    for field, weight in required.items():
-        val = tags.get(field, "").strip()
-        if val:
+    for field, weight in tag_weights.items():
+        if tags.get(field, "").strip():
             score += weight
 
-    # Bonus: check amenity value is medical-related
-    amenity = tags.get("amenity", "")
-    if amenity in ("hospital", "clinic", "doctors", "pharmacy", "dentist"):
-        score += 0.05
+    lat = coords.get("lat", 0.0)
+    lon = coords.get("lon", 0.0)
+    if 17.0 <= lat <= 18.0 and 78.0 <= lon <= 79.0:
+        score += 0.15
+
+    if merged:
+        score += 0.15
 
     return clamp(score)
 
 
 GRADERS: Dict[str, Any] = {
-    "easy": grade_easy,
-    "medium": grade_medium,
-    "hard": grade_hard,
+    "task_easy": grade_easy,
+    "task_medium": grade_medium,
+    "task_hard": grade_hard,
 }
+
+
+def grade(task_id: str, episode: Dict[str, Any]) -> float:
+    """Dispatch grading to the correct task grader."""
+    grader_fn = GRADERS.get(task_id)
+    if grader_fn is None:
+        raise ValueError(f"No grader registered for task_id: {task_id!r}")
+    return grader_fn(episode)
