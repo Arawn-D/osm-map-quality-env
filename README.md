@@ -199,12 +199,12 @@ MIT — open for evaluation by the hackathon judges.
 ## Live Demo
 
 Deployed on Hugging Face Spaces:
-https://arawn-d-osm-map-quality-env.hf.space
+[https://arawn-1-osm-env.hf.space](https://arawn-1-osm-env.hf.space)
 
 Health check:
-https://arawn-d-osm-map-quality-env.hf.space/health
+[https://arawn-1-osm-env.hf.space/health](https://arawn-1-osm-env.hf.space/health)
 
 ## Submission
 
 - **GitHub**: https://github.com/Arawn-D/osm-map-quality-env
-- **HF Space**: https://huggingface.co/spaces/Arawn-D/osm-map-quality-env
+- **HF Space**: https://huggingface.co/spaces/Arawn-1/osm-env
