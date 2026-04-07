@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator, Field
 from typing import Optional, Dict, Any
 from dataclasses import asdict
-import traceback
 import time
 import re
 from collections import defaultdict
@@ -281,6 +280,11 @@ def baseline():
     return {"baseline_scores": results}
 
 
-if __name__ == "__main__":
+def main():
+    """Entry point for running the server directly."""
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7860)
+
+
+if __name__ == "__main__":
+    main()
