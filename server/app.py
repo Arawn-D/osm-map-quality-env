@@ -1,8 +1,8 @@
-"""FastAPI app for OSM Map Quality Environment - Security Hardened."""
+"""FastAPI application for the OSM Map Quality Environment."""
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, validator, Field
+from pydantic import BaseModel, field_validator, Field
 from typing import Optional, Dict, Any
 from dataclasses import asdict
 import traceback
@@ -13,65 +13,52 @@ from .environment import OSMMapQualityEnvironment
 from .tasks import list_tasks
 from .graders import grade
 
-# ── Security: Rate Limiting ──────────────────────────
+VALID_TASK_IDS = {"task_easy", "task_medium", "task_hard"}
+VALID_ACTION_TYPES = {
+    "set_tag", "remove_tag", "fix_coordinates",
+    "merge_duplicate", "flag_invalid", "mark_complete",
+}
+
+
 class RateLimiter:
-    def __init__(self, requests_per_minute=60):
-        self.requests_per_minute = requests_per_minute
-        self.requests = defaultdict(list)
-    
+    def __init__(self, requests_per_minute: int = 100):
+        self.limit = requests_per_minute
+        self.log: dict = defaultdict(list)
+
     def is_allowed(self, client_id: str) -> bool:
         now = time.time()
-        self.requests[client_id] = [t for t in self.requests[client_id] if now - t < 60]
-        if len(self.requests[client_id]) >= self.requests_per_minute:
+        self.log[client_id] = [t for t in self.log[client_id] if now - t < 60]
+        if len(self.log[client_id]) >= self.limit:
             return False
-        self.requests[client_id].append(now)
+        self.log[client_id].append(now)
         return True
 
-rate_limiter = RateLimiter(requests_per_minute=100)
 
-# ── Security: Input Validation ───────────────────────
-def sanitize_string(s: str, max_length=500) -> str:
-    """Sanitize string inputs to prevent injection attacks."""
-    if not s:
+rate_limiter = RateLimiter()
+
+
+def sanitize_string(value: str, max_length: int = 500) -> str:
+    if not value:
         return ""
-    # Remove potentially dangerous characters
-    s = re.sub(r'[<>"\\;{}]', '', str(s))
-    return s[:max_length]
+    cleaned = re.sub(r'[<>"\\;{}]', "", str(value))
+    return cleaned[:max_length]
 
-# ── Shared environment instance ──────────────────────
+
 env = OSMMapQualityEnvironment()
-env.reset("task_easy")  # initialise default task
+env.reset("task_easy")
 
-# ── FastAPI app with enhanced metadata ───────────────
 app = FastAPI(
-    title="🗺️ OSM Map Quality Environment",
-    description="""**Professional-grade OpenStreetMap data quality environment for AI agents**
-    
-🔒 **Security Features:**
-- Rate limiting (100 req/min per client)
-- Input sanitization and validation
-- SQL injection protection
-- CORS configured for safe cross-origin access
-
-🎯 **Real-world Use Case:**
-This environment simulates actual OSM data quality work done by mapping teams at Apple, Google, and Meta.
-Agents learn to detect and fix: missing tags, invalid coordinates, duplicate features, and conflicting attributes.
-
-📊 **4 Progressive Tasks:**
-- Easy: Fix missing name tag (1 issue)
-- Medium: Complete address fields (4 issues)
-- Hard: Resolve duplicate hospitals (6 issues)
-- Expert: Multi-POI quality audit (10+ issues)
-
-🏆 **Built for Meta x PyTorch x Scaler Hackathon**
-Author: dokka vijay | helloaavijay@gmail.com
-    """,
+    title="OSM Map Quality Environment",
+    description=(
+        "OpenStreetMap data quality environment for AI agents. "
+        "Agents inspect map features and fix issues such as missing tags, "
+        "invalid coordinates, and conflicting attributes."
+    ),
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# ── CORS Middleware ──────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,7 +67,7 @@ app.add_middleware(
     expose_headers=["X-RateLimit-Remaining"],
 )
 
-# ── Rate Limit Middleware ────────────────────────────
+
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     client_id = request.client.host if request.client else "unknown"
@@ -90,65 +77,78 @@ async def rate_limit_middleware(request: Request, call_next):
             content={"detail": "Rate limit exceeded. Max 100 requests per minute."},
             headers={"Retry-After": "60"},
         )
-    response = await call_next(request)
-    return response
+    return await call_next(request)
 
-# ── Pydantic request schemas (with validation) ───────
+
 class ResetRequest(BaseModel):
-    task_id: Optional[str] = Field(default="task_easy", regex=r"^task_(easy|medium|hard|expert)$")
-    
-    @validator('task_id')
+    task_id: Optional[str] = Field(default="task_easy", pattern=r"^task_(easy|medium|hard)$")
+
+    @field_validator("task_id")
+    @classmethod
     def validate_task_id(cls, v):
-        if v not in ["task_easy", "task_medium", "task_hard", "task_expert"]:
-            raise ValueError("Invalid task_id. Must be task_easy, task_medium, task_hard, or task_expert.")
+        if v not in VALID_TASK_IDS:
+            raise ValueError(f"Invalid task_id. Allowed: {sorted(VALID_TASK_IDS)}")
         return v
 
+
 class StepRequest(BaseModel):
-    action_type: str = Field(..., regex=r"^(set_tag|remove_tag|fix_coordinates|merge_duplicate|flag_invalid|mark_complete)$")
+    action_type: str = Field(..., pattern=r"^(set_tag|remove_tag|fix_coordinates|merge_duplicate|flag_invalid|mark_complete)$")
     tag_key: Optional[str] = Field(None, max_length=100)
     tag_value: Optional[str] = Field(None, max_length=500)
     coordinates: Optional[Dict[str, float]] = None
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-    
-    @validator('tag_key', 'tag_value')
-    def sanitize_tags(cls, v):
-        return sanitize_string(v) if v else None
-    
-    @validator('coordinates')
-    def validate_coordinates(cls, v):
-        if v:
-            if 'lat' not in v or 'lon' not in v:
-                raise ValueError("coordinates must contain 'lat' and 'lon'")
-            if not (-90 <= v['lat'] <= 90):
-                raise ValueError("Latitude must be between -90 and 90")
-            if not (-180 <= v['lon'] <= 180):
-                raise ValueError("Longitude must be between -180 and 180")
+
+    @field_validator("action_type")
+    @classmethod
+    def validate_action_type(cls, v):
+        if v not in VALID_ACTION_TYPES:
+            raise ValueError(f"Invalid action_type. Allowed: {sorted(VALID_ACTION_TYPES)}")
         return v
 
-class GraderRequest(BaseModel):
-    task_id: str = Field(..., regex=r"^task_(easy|medium|hard|expert)$")
+    @field_validator("tag_key", "tag_value")
+    @classmethod
+    def sanitize_tags(cls, v):
+        return sanitize_string(v) if v else None
 
-# ── Helper functions ─────────────────────────────────
+    @field_validator("coordinates")
+    @classmethod
+    def validate_coordinates(cls, v):
+        if v is None:
+            return v
+        if "lat" not in v or "lon" not in v:
+            raise ValueError("coordinates must contain 'lat' and 'lon'")
+        if not (-90 <= v["lat"] <= 90):
+            raise ValueError("Latitude must be between -90 and 90")
+        if not (-180 <= v["lon"] <= 180):
+            raise ValueError("Longitude must be between -180 and 180")
+        return v
+
+
+class GraderRequest(BaseModel):
+    task_id: str = Field(..., pattern=r"^task_(easy|medium|hard)$")
+
+
 def obs_to_dict(obs):
     try:
         return asdict(obs)
     except Exception:
-        return obs.__dict__ if hasattr(obs, '__dict__') else str(obs)
+        return obs.__dict__ if hasattr(obs, "__dict__") else str(obs)
+
 
 def state_to_dict(s):
     try:
         return asdict(s)
     except Exception:
-        return s.__dict__ if hasattr(s, '__dict__') else str(s)
+        return s.__dict__ if hasattr(s, "__dict__") else str(s)
 
-# ── Root endpoint ────────────────────────────────────
+
 @app.get("/", tags=["Info"])
 def root():
     return {
-        "message": "🗺️ OSM Map Quality Environment API",
+        "service": "OSM Map Quality Environment API",
         "version": "2.0.0",
-        "documentation": "/docs",
-        "health_check": "/health",
+        "docs": "/docs",
+        "health": "/health",
         "endpoints": {
             "reset": "POST /reset",
             "step": "POST /step",
@@ -157,46 +157,43 @@ def root():
             "grader": "POST /grader",
             "baseline": "POST /baseline",
         },
-        "security": "Rate limited, input validated, injection-protected",
     }
 
-# ── /health ──────────────────────────────────────────
+
 @app.get("/health", tags=["Health"])
 def health():
     return {
         "status": "ok",
         "env": "osm-map-quality-env",
         "version": "2.0.0",
-        "security": "hardened",
-        "rate_limit": "100 req/min",
     }
 
-# ── /reset ───────────────────────────────────────────
+
 @app.post("/reset", tags=["Environment"])
 def reset(req: ResetRequest = None):
-    """Reset environment to a new task episode."""
+    """Reset the environment to the start of a new episode."""
     task_id = (req.task_id if req else None) or "task_easy"
     try:
         obs = env.reset(task_id=task_id)
         return {"observation": obs_to_dict(obs)}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Reset failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Reset failed: {e}")
 
-# ── /step ────────────────────────────────────────────
+
 @app.post("/step", tags=["Environment"])
 def step(req: StepRequest):
-    """Take an action step in the current episode."""
+    """Submit one action and advance the episode by one step."""
     try:
-        # Build action using a simple object
-        class _Action:
+        class Action:
             pass
-        action = _Action()
+
+        action = Action()
         action.action_type = req.action_type
         action.tag_key = req.tag_key
         action.tag_value = req.tag_value
         action.coordinates = req.coordinates
         action.confidence = req.confidence
-        
+
         obs = env.step(action)
         return {
             "observation": obs_to_dict(obs),
@@ -204,24 +201,24 @@ def step(req: StepRequest):
             "done": obs.done,
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Step failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Step failed: {e}")
 
-# ── /state ───────────────────────────────────────────
+
 @app.get("/state", tags=["Environment"])
 def state():
-    """Get current episode state."""
+    """Return the current episode state."""
     return {"state": state_to_dict(env.state)}
 
-# ── /tasks ───────────────────────────────────────────
+
 @app.get("/tasks", tags=["Environment"])
 def tasks():
-    """List all available tasks and action schema."""
+    """List all available tasks and the action schema."""
     return {"tasks": list_tasks()}
 
-# ── /grader ──────────────────────────────────────────
+
 @app.post("/grader", tags=["Grading"])
 def grader(req: GraderRequest):
-    """Grade current episode for a specific task."""
+    """Grade the current episode state for a given task."""
     try:
         snapshot = env.get_episode_snapshot()
         score = grade(req.task_id, snapshot)
@@ -231,16 +228,13 @@ def grader(req: GraderRequest):
             "snapshot": snapshot,
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Grading failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Grading failed: {e}")
 
-# ── /baseline ────────────────────────────────────────
+
 @app.post("/baseline", tags=["Grading"])
 def baseline():
-    """Run baseline agent on all tasks and return scores."""
-    results = {}
-    tasks_to_run = ["task_easy", "task_medium", "task_hard"]
-    
-    baseline_actions = {
+    """Run a deterministic baseline agent across all tasks and return scores."""
+    baseline_plans = {
         "task_easy": [
             {"action_type": "set_tag", "tag_key": "name", "tag_value": "Hyderabad Chai Cafe"},
             {"action_type": "mark_complete"},
@@ -262,33 +256,31 @@ def baseline():
             {"action_type": "mark_complete"},
         ],
     }
-    
-    for task_id in tasks_to_run:
+
+    results = {}
+    for task_id, plan in baseline_plans.items():
         try:
             env.reset(task_id=task_id)
-            actions = baseline_actions[task_id]
-            for a in actions:
-                class _Act:
+            for entry in plan:
+                class Action:
                     pass
-                act = _Act()
-                act.action_type = a["action_type"]
-                act.tag_key = a.get("tag_key")
-                act.tag_value = a.get("tag_value")
-                act.coordinates = a.get("coordinates")
+                act = Action()
+                act.action_type = entry["action_type"]
+                act.tag_key = entry.get("tag_key")
+                act.tag_value = entry.get("tag_value")
+                act.coordinates = entry.get("coordinates")
                 act.confidence = 1.0
                 env.step(act)
-            
             snapshot = env.get_episode_snapshot()
             score = grade(task_id, snapshot)
             results[task_id] = {"score": score, "status": "success"}
         except Exception as e:
             results[task_id] = {"score": 0.0, "status": "error", "error": str(e)}
-    
-    # Reset to default after baseline run
+
     env.reset("task_easy")
     return {"baseline_scores": results}
 
-# ── Run locally ──────────────────────────────────────
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=7860)
