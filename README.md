@@ -7,6 +7,7 @@
 ![OpenEnv](https://img.shields.io/badge/OpenEnv-Compatible-orange?style=for-the-badge)
 ![Hackathon](https://img.shields.io/badge/Meta%20x%20PyTorch%20x%20Scaler-Round%201-blueviolet?style=for-the-badge)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+[![HuggingFace Space](https://img.shields.io/badge/HuggingFace-Space-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)](https://huggingface.co/spaces/Arawn-1/osm-env)
 
 **A production-grade reinforcement learning environment for AI-driven OpenStreetMap data quality inspection.**
 
