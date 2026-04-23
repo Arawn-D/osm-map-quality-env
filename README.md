@@ -18,7 +18,7 @@ This environment is grounded in real Hyderabad map data and is directly relevant
 | Framework | OpenEnv (openenv-core) |
 | Language | Python 3.11 |
 | Server | FastAPI + Uvicorn |
-| Port | 8000 |
+| Port | 7860 |
 | Tasks | 3 (easy, medium, hard) |
 | Score Range | 0.0 – 1.0 per task |
 | Reward Type | Partial (not binary) |
@@ -104,7 +104,7 @@ cd osm-map-quality-env
 pip install -r requirements.txt
 
 # 3. Start the server
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 # 4. Run the baseline script
 python baseline.py
@@ -117,32 +117,32 @@ python baseline.py
 docker build -t osm-map-quality-env .
 
 # Run
-docker run -p 8000:8000 osm-map-quality-env
+docker run -p 7860:7860 osm-map-quality-env
 
 # Test health
-curl http://localhost:8000/health
+curl http://localhost:7860/health
 ```
 
 ### Test the environment manually
 
 ```bash
 # Reset with easy task
-curl -X POST http://localhost:8000/reset \
+curl -X POST http://localhost:7860/reset \
   -H 'Content-Type: application/json' \
   -d '{"task_id": "task_easy"}'
 
 # Take a step
-curl -X POST http://localhost:8000/step \
+curl -X POST http://localhost:7860/step \
   -H 'Content-Type: application/json' \
   -d '{"action_type": "set_tag", "tag_key": "name", "tag_value": "Chai Point"}'
 
 # Grade the episode
-curl -X POST http://localhost:8000/grader \
+curl -X POST http://localhost:7860/grader \
   -H 'Content-Type: application/json' \
   -d '{"task_id": "task_easy"}'
 
 # Run baseline on all 3 tasks
-curl -X POST http://localhost:8000/baseline
+curl -X POST http://localhost:7860/baseline
 ```
 
 ---
