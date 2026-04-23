@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-server = "server.main:app"
+server = "server.app:app"
 
 [tool.openenv]
 env_class = "server.environment:OSMMapQualityEnvironment"
