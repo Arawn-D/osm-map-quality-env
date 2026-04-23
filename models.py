@@ -1,51 +1,55 @@
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
-
-try:
-    from openenv.core.env_server import Action, Observation, State
-except ImportError:
-    # Fallback base classes if openenv not installed yet
-    class Action:
-        pass
-    class Observation:
-        pass
-    class State:
-        pass
+"""Pydantic models for the OSM Map Quality Environment.
+Spec requirement: typed Observation, Action, and Reward Pydantic models.
+"""
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, List
 
 
-@dataclass
-class MapAction(Action):
+class MapAction(BaseModel):
     """Agent action on an OSM map feature."""
-    action_type: str = ""
-    tag_key: Optional[str] = None
-    tag_value: Optional[str] = None
-    coordinates: Optional[Dict[str, float]] = None
-    confidence: float = 1.0
+    action_type: str = Field(default="mark_complete", description="Type of action")
+    tag_key: Optional[str] = Field(default=None, description="Tag key (for set_tag / remove_tag)")
+    tag_value: Optional[str] = Field(default=None, description="Tag value (for set_tag)")
+    coordinates: Optional[Dict[str, float]] = Field(default=None, description="lat/lon for fix_coordinates")
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Agent confidence 0-1")
+
+    class Config:
+        extra = "allow"
 
 
-@dataclass
-class MapObservation(Observation):
-    """What the agent observes after each step."""
-    feature_id: str = ""
-    feature_type: str = ""
-    current_tags: Dict[str, str] = field(default_factory=dict)
-    issues_remaining: int = 0
-    feedback: str = ""
-    reward: float = 0.0
-    done: bool = False
-    task_id: str = ""
-    step_count: int = 0
-    secondary_feature: Optional[Dict[str, Any]] = None
+class MapObservation(BaseModel):
+    """Observation returned from the environment after each step."""
+    feature_id: str = Field(default="", description="Unique feature identifier")
+    feature_type: str = Field(default="", description="OSM feature type (e.g. amenity)")
+    current_tags: Dict[str, Any] = Field(default_factory=dict, description="Current OSM tags")
+    secondary_feature: Optional[Dict[str, Any]] = Field(default=None, description="Related feature (e.g. duplicate)")
+    issues_remaining: int = Field(default=0, description="Number of unresolved issues")
+    feedback: str = Field(default="", description="Human-readable feedback on last action")
+    reward: float = Field(default=0.0, description="Reward for last action")
+    done: bool = Field(default=False, description="Whether the episode is complete")
+    task_id: str = Field(default="", description="Current task identifier")
+    step_count: int = Field(default=0, description="Steps taken so far")
 
 
-@dataclass
-class MapState(State):
-    """Full episode state tracking."""
-    task_id: str = ""
-    step_count: int = 0
-    episode_id: str = ""
-    accumulated_reward: float = 0.0
-    issues_fixed: int = 0
-    issues_total: int = 0
-    last_action_type: str = ""
-    is_done: bool = False
+class MapReward(BaseModel):
+    """Reward signal returned after grading."""
+    score: float = Field(default=0.0, ge=0.0, le=1.0, description="Final grade score 0.0-1.0")
+    task_id: str = Field(default="", description="Task that was graded")
+    breakdown: Dict[str, float] = Field(default_factory=dict, description="Per-criterion score breakdown")
+    success: bool = Field(default=False, description="Whether the agent passed the success threshold")
+
+
+class MapState(BaseModel):
+    """Full environment state (internal)."""
+    task_id: str = Field(default="")
+    feature_id: str = Field(default="")
+    feature_type: str = Field(default="")
+    current_tags: Dict[str, Any] = Field(default_factory=dict)
+    secondary_feature: Optional[Dict[str, Any]] = Field(default=None)
+    issues: List[str] = Field(default_factory=list)
+    step_count: int = Field(default=0)
+    max_steps: int = Field(default=30)
+    done: bool = Field(default=False)
+    coordinates: Dict[str, float] = Field(default_factory=lambda: {"lat": 0.0, "lon": 0.0})
+    duplicate_merged: bool = Field(default=False)
+    episode_actions: List[Dict[str, Any]] = Field(default_factory=list)
