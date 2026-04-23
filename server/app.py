@@ -192,7 +192,6 @@ def step(req: StepRequest):
         action.tag_value = req.tag_value
         action.coordinates = req.coordinates
         action.confidence = req.confidence
-
         obs = env.step(action)
         return {
             "observation": obs_to_dict(obs),
@@ -205,13 +204,17 @@ def step(req: StepRequest):
 
 @app.get("/state", tags=["Environment"])
 def state():
-    """Return the current episode state."""
-    return {"state": state_to_dict(env.state)}
+    """Get the current environment state."""
+    try:
+        s = env.state
+        return state_to_dict(s)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"State failed: {e}")
 
 
 @app.get("/tasks", tags=["Environment"])
 def tasks():
-    """List all available tasks and the action schema."""
+    """List all available tasks."""
     return {"tasks": list_tasks()}
 
 
