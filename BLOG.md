@@ -87,7 +87,7 @@ The grader scores each episode across multiple dimensions:
 
 ### Model
 
-- **Base:** `unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit`
+- **Base:** `unsloth/Qwen2.5-3B-Instruct-bnb-4bit`
 - **Adapter:** LoRA, rank 32, alpha 32, targeting attention and MLP projection layers
 - **Framework:** Unsloth + TRL GRPO
 - **Max sequence length:** 768 tokens
@@ -204,7 +204,7 @@ curl -X POST https://arawn-1-osm-env.hf.space/grader \
 ## Key Design Decisions
 
 **Why GRPO over PPO?**  
-GRPO does not require a separate value/critic network. For a small model (1.5B parameters) with a sparse, multi-step reward, this reduces training instability and memory overhead significantly.
+GRPO does not require a separate value/critic network. For a small model (3B parameters) with a sparse, multi-step reward, this reduces training instability and memory overhead significantly.
 
 **Why a live API environment?**  
 The agent calls a real HTTP server during rollouts. This forces the agent to produce structurally valid JSON and handle realistic latency, making the learned behavior closer to actual tool-use.
@@ -262,7 +262,7 @@ osm-map-quality-env/
 
 Building a custom RL environment that an LLM calls over HTTP during training required solving several non-obvious problems:
 
-- **Reward shaping matters more than model size.** A 1.5B model with a well-designed multi-component reward learned meaningful behavior within 50 steps.
+- **Reward shaping matters more than model size.** A 3B model with a well-designed multi-component reward learned meaningful behavior within 50 steps.
 - **Partial observability creates richer behavior.** Agents trained on fully-observable environments tend to take one action and stop. Partial observability forces multi-step reasoning.
 - **Sequence bonuses drive correct ordering.** Without the sequence quality dimension in the hard grader (fix coordinates before setting address), the agent learned to set tags in arbitrary order.
 - **Noise injection is essential for generalization.** Early experiments with static tasks showed the agent memorizing exact tag values. Noise injection eliminated this within a few training runs.
