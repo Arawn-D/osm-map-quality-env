@@ -59,7 +59,7 @@ app = FastAPI(
         "Features partial observability, noisy/conflicting inputs, cascading "
         "error discovery, and confidence-calibrated grading."
     ),
-    version="2.1.0",
+    version="2.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -344,11 +344,12 @@ LANDING_HTML = r"""<!DOCTYPE html>
         <circle cx="12" cy="12" r="3"></circle>
         <line x1="12" y1="2" x2="12" y2="12"></line>
       </svg>
-      OSM_ENV // v2.1.0
+      OSM_ENV // v2.2.0
     </div>
     <div class="links">
       <a href="#problem">The Problem</a>
       <a href="#how-it-works">Architecture</a>
+      <a href="#training">Training</a>
       <a href="#results">Benchmarks</a>
       <a href="/docs" class="btn" style="padding: 8px 20px; font-size: 1.1rem; margin-left: 20px; box-shadow: none;">Swagger API</a>
     </div>
@@ -357,7 +358,13 @@ LANDING_HTML = r"""<!DOCTYPE html>
   <div class="container hero">
     <div class="hero-left fade-up">
       <h1>TEACHING AI TO <br><span class="text-mint">READ THE WORLD</span></h1>
-      <p class="mono-sub" style="margin-bottom: 40px;">avg_score: <span class="text-orange">0.48</span> &rarr; <span class="text-mint">0.85</span></p>
+      <p class="mono-sub" style="margin-bottom: 12px;">GRPO mean reward: <span class="text-orange">~0.50</span> &rarr; <span class="text-mint">1.04</span></p>
+      <p class="mono-sub" style="margin-bottom: 36px; font-size: clamp(0.85rem, 1.5vw, 1rem); color: var(--text-dim); max-width: 36em;">
+        Same HTTP API as the <strong>Qwen2.5-3B + LoRA + TRL GRPO</strong> training run: grader score, positional sequence bonuses, and per-task reward multipliers.
+        <a href="https://huggingface.co/Arawn-1/osm-map-quality-agent" style="color: var(--mint);">Trained model</a>
+        ·
+        <a href="https://github.com/Arawn-D/osm-map-quality-env" style="color: var(--mint);">Environment repo</a>
+      </p>
       <a href="#demo" class="btn btn-pulse">WATCH THE AGENT LEARN</a>
     </div>
     <div class="hero-right fade-up">
@@ -452,7 +459,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
              <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
            </svg>
            <h3 class="text-mint">AI Agent</h3>
-           <p>LoRA fine-tuned on Qwen2.5 with GRPO rollouts. Actions reveal hidden tags.</p>
+           <p><strong>Qwen2.5-3B-Instruct</strong> (4-bit) + <strong>LoRA</strong> (r=32, attention + MLP). <strong>TRL GRPO</strong> with grader-optimized multi-step rollouts, sequence bonuses, and <code style="color: var(--text-dim);">ENV_URL</code> pointing at this Space.</p>
        </div>
        <div class="arrow">
           <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
@@ -462,7 +469,7 @@ LANDING_HTML = r"""<!DOCTYPE html>
              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
            </svg>
            <h3>6-Axis Grader</h3>
-           <p>Scores completeness, sequence, efficiency, duplication, and confidence limits.</p>
+           <p>Completeness, consistency, efficiency, accuracy, merge, sequence. Episode scores typically <span class="text-mint">0.05&ndash;0.95</span>; the training reward stacks multipliers, EOS bonus, and caps &mdash; mean reward can exceed <strong>1.0</strong>.</p>
        </div>
     </div>
     
@@ -483,27 +490,64 @@ LANDING_HTML = r"""<!DOCTYPE html>
     </div>
   </section>
 
+  <section id="training" class="container">
+    <h2 class="fade-up"><span class="text-blue">//02b</span> TRAINING ALIGNMENT</h2>
+    <p class="mono-sub fade-up" style="color: var(--text-dim); margin-bottom: 28px; max-width: 52em;">
+      The <a href="https://github.com/Arawn-D/osm-map-quality-env" style="color: var(--mint);">repo</a> and Colab/Kaggle notebook call this Space as <code style="color: var(--text);">ENV_URL</code> (e.g. <code style="color: var(--text);">https://arawn-1-osm-env.hf.space</code>).
+      Agents emit <strong>one JSON object per step</strong> with <code style="color: var(--text);">action_type</code>, optional <code style="color: var(--text);">tag_key</code> / <code style="color: var(--text);">tag_value</code> / <code style="color: var(--text);">coordinates</code>, and <code style="color: var(--text);">confidence</code> &mdash; matching <code style="color: var(--text);">POST /step</code> and the GRPO prompt builder.
+    </p>
+    <div class="split fade-up" style="margin-bottom: 24px;">
+      <div class="panel">
+        <div class="panel-header">EPISODE_BUDGETS (from training config)</div>
+        <pre style="padding: 20px 25px; font-size: 0.88rem;"><span class="text-dim">task_easy</span>   Missing name tag         <span class="text-mint">max 10</span> steps, 1 issue
+<span class="text-dim">task_medium</span> Address completion     <span class="text-mint">max 20</span> steps, 4 issues
+<span class="text-dim">task_hard</span>   Duplicate resolution  <span class="text-mint">max 30</span> steps, 6 issues</pre>
+      </div>
+      <div class="panel">
+        <div class="panel-header">SAMPLE_ACTION.JSON (valid step)</div>
+        <pre style="padding: 20px 25px; font-size: 0.82rem; line-height: 1.55;">{"action_type":"set_tag",
+ "tag_key":"name",
+ "tag_value":"Yashoda Hospital",
+ "confidence":0.9}
+
+{"action_type":"fix_coordinates",
+ "coordinates":{"lat":17.4449,"lon":78.5011},
+ "confidence":0.9}
+
+{"action_type":"mark_complete","confidence":1.0}</pre>
+      </div>
+    </div>
+    <p class="mono-sub fade-up" style="text-align: center; color: var(--text-dim); font-size: 0.9rem;">
+      Upload the adapter from training to
+      <a href="https://huggingface.co/Arawn-1/osm-map-quality-agent" style="color: var(--mint);">Arawn-1/osm-map-quality-agent</a>
+      &middot; Final logged <strong>mean reward &asymp; 1.04</strong> (TRL GRPO; same metric as the training notebook)
+    </p>
+  </section>
+
   <section id="results" class="container reveal">
     <h2 class="fade-up"><span class="text-blue">//03</span> BENCHMARKS</h2>
+    <p class="mono-sub fade-up" style="color: var(--text-dim); margin: -20px 0 28px; max-width: 48em;">
+      Illustrative <strong>grader</strong> scores (0&ndash;1) after a good fix path. Training optimizes a richer GRPO signal (not this number alone).
+    </p>
     <div class="results-table fade-up">
        <div class="r-row">
-          <div class="r-name">task_easy (Missing Tags)</div>
+          <div class="r-name">task_easy &mdash; missing name (10 steps)</div>
           <div class="r-bar-wrap"><div class="r-bar" style="width: 95%"></div></div>
           <div class="r-score">0.95</div>
        </div>
        <div class="r-row">
-          <div class="r-name">task_medium (Address Conflicts)</div>
+          <div class="r-name">task_medium &mdash; address completion (20 steps)</div>
           <div class="r-bar-wrap"><div class="r-bar" style="width: 88%"></div></div>
           <div class="r-score">0.88</div>
        </div>
        <div class="r-row">
-          <div class="r-name">task_hard (Duplicate Resolution)</div>
+          <div class="r-name">task_hard &mdash; duplicate resolution (30 steps)</div>
           <div class="r-bar-wrap"><div class="r-bar" style="width: 82%"></div></div>
           <div class="r-score">0.82</div>
        </div>
     </div>
     <div class="counter-box fade-up">
-       Overall Agent Gain: <span class="text-orange" id="c-start">0.48</span> &rarr; <span class="text-mint" id="c-end">0.85</span>
+       GRPO mean reward (training): <span class="text-orange" id="c-start">0.50</span> &rarr; <span class="text-mint" id="c-end">1.04</span>
     </div>
   </section>
 
@@ -532,11 +576,11 @@ LANDING_HTML = r"""<!DOCTYPE html>
                 const endEl = document.getElementById('c-end');
                 if(!endEl.dataset.done) {
                    endEl.dataset.done = 'true';
-                   let start = 0.48, end = 0.85, frames = 60, c = 0;
+                   let start = 0.50, end = 1.04, frames = 60, c = 0;
                    let int = setInterval(() => {
                        c++;
                        endEl.innerText = (start + (end - start) * (c/frames)).toFixed(2);
-                       if (c >= frames) { clearInterval(int); endEl.innerText = "0.85"; }
+                       if (c >= frames) { clearInterval(int); endEl.innerText = "1.04"; }
                    }, 30);
                 }
              }
@@ -564,7 +608,7 @@ def health():
     return {
         "status": "ok",
         "env": "osm-map-quality-env",
-        "version": "2.1.0",
+        "version": "2.2.0",
     }
 
 
@@ -573,7 +617,7 @@ def info():
     """Return environment capabilities, innovations, and metadata."""
     return {
         "name": "OSM Map Quality Environment",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "author": "Dokka Vijay",
         "description": (
             "A world-modeling environment for geographic data quality assurance. "
