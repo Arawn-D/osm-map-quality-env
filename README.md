@@ -5,7 +5,7 @@ colorTo: green
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: "World-modeling RL environment: partial observability, noisy data, cascading errors"
+short_description: "World-modeling RL environment for OSM data quality."
 ---
 
 # OSM Map Quality Environment
