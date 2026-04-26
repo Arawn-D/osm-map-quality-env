@@ -1,16 +1,23 @@
 name: osm-map-quality-env
-version: "2.0.0"
+version: "2.1.0"
 description: >
-  A real-world OpenStreetMap (OSM) data quality checking environment.
-  An AI agent inspects map feature records and fixes data quality issues
-  such as missing tags, invalid coordinates, and conflicting attributes.
+  A world-modeling environment for geographic data quality assurance.
+  Features partial observability, noisy/conflicting inputs, cascading 
+  error discovery, confidence-calibrated grading, and dynamic task generation.
+  Agents must reason under uncertainty to fix real-world OpenStreetMap data — 
+  the way human mappers actually work.
 author: dokka vijay
 email: helloaavijay@gmail.com
-
 environment:
   type: http
   port: 7860
-
+innovations:
+  - partial_observability: "Tags revealed progressively through agent actions"
+  - noisy_data: "Typos, conflicting values, stale data injected dynamically"
+  - cascading_errors: "Fixing one issue may reveal new inconsistencies"
+  - confidence_calibration: "Overconfident wrong actions penalized more heavily"
+  - dynamic_generation: "Fresh task variations each episode via randomized seeds"
+  - multi_dimensional_grading: "6-axis scoring: completeness, consistency, efficiency, accuracy, merge quality, sequence"
 action:
   type: object
   fields:
@@ -26,47 +33,47 @@ action:
     coordinates:
       type: object
       required: false
-      fields:
-        lat: {type: number}
-        lon: {type: number}
     confidence:
       type: number
-      required: false
-
+      description: "Agent's confidence in this action (0.0-1.0). Affects reward calibration."
 observation:
   type: object
+  description: "Partially observable — not all tags visible at start. Actions reveal data."
   fields:
     feature_id: {type: string}
     feature_type: {type: string}
-    current_tags: {type: object}
-    secondary_feature: {type: object, required: false}
+    current_tags: {type: object, note: "Only visible tags shown. More revealed through actions."}
     issues_remaining: {type: integer}
-    feedback: {type: string}
+    feedback: {type: string, note: "Includes diagnostic hints and cascading discovery alerts."}
     reward: {type: number}
     done: {type: boolean}
     task_id: {type: string}
     step_count: {type: integer}
-
 tasks:
   - id: task_easy
-    description: Fix missing name tag on a cafe feature in Hyderabad
+    name: Missing Name Tag Fix
+    difficulty: easy
     max_steps: 10
+    score_range: [0.05, 0.95]
+    features: [dynamic_generation, noise_injection]
   - id: task_medium
-    description: Fill in missing address fields (street, city, postcode, country) for a shop
+    name: Multi-Field Address Completion
+    difficulty: medium
     max_steps: 20
+    score_range: [0.05, 0.95]
+    features: [conflicting_data, noise_injection, dynamic_generation]
   - id: task_hard
-    description: Fix multiple issues on a hospital feature including name, coordinates, address, and duplicate
+    name: Duplicate & Conflicting Feature Resolution
+    difficulty: hard
     max_steps: 30
-
+    score_range: [0.05, 0.95]
+    features: [partial_observability, cascading_errors, conflicting_data, noise_injection, dynamic_generation]
 endpoints:
-  reset: POST /reset
   step: POST /step
+  reset: POST /reset
   state: GET /state
   tasks: GET /tasks
   grader: POST /grader
   baseline: POST /baseline
-  predict: POST /predict
   health: GET /health
-
-tags:
-  - openenv
+  info: GET /info
