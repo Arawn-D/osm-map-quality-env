@@ -39,7 +39,7 @@ The agent calls this server over HTTP during GRPO training rollouts.
 ## Architecture
 
 ```
-Agent (Qwen2.5-1.5B + LoRA + GRPO)
+Agent (Qwen2.5-3B + LoRA + GRPO)
     |
     v
 POST /reset  -->  Partial OSM Observation
@@ -49,7 +49,7 @@ POST /grader -->  6-Axis Score (0.05 - 0.95)
 
 ```mermaid
 graph TD
-    A["Agent: Qwen2.5-1.5B GRPO"] -->|"Action: JSON"| B("OSM Environment")
+    A["Agent: Qwen2.5-3B GRPO"] -->|"Action: JSON"| B("OSM Environment")
     B -->|"Observation: Partial Tags"| A
     B -->|"Grader: 6-Axis Score"| C{"Reward Engine"}
     C -->|"Feedback"| A
@@ -73,7 +73,7 @@ graph TD
 
 | Parameter | Value |
 |---|---|
-| Base model | `unsloth/qwen2.5-1.5b-instruct-unsloth-bnb-4bit` |
+| Base model | `unsloth/Qwen2.5-3B-Instruct-bnb-4bit` |
 | Adapter | LoRA r=32, alpha=32, attention + MLP targets |
 | Algorithm | GRPO (TRL + Unsloth) |
 | Max sequence length | 768 tokens |
