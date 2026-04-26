@@ -66,4 +66,5 @@ endpoints:
   tasks: GET /tasks
   grader: POST /grader
   baseline: POST /baseline
+  predict: POST /predict
   health: GET /health

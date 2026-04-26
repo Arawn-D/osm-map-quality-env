@@ -88,6 +88,7 @@ This environment is grounded in real Hyderabad map data and is directly relevant
 | `/tasks` | GET | List all tasks and action schema |
 | `/grader` | POST | Grade current episode. Body: `{"task_id": "..."}` |
 | `/baseline` | POST | Run full baseline agent on all 3 tasks |
+| `/predict` | POST | Return one valid action for an arbitrary observation (`auto` local-model + rule fallback) |
 
 ---
 
@@ -143,6 +144,38 @@ curl -X POST http://localhost:8000/grader \
 
 # Run baseline on all 3 tasks
 curl -X POST http://localhost:8000/baseline
+
+# Predict one action for any observation
+curl -X POST http://localhost:8000/predict \
+  -H 'Content-Type: application/json' \
+  -d '{"task_id":"task_easy","observation":{"current_tags":{"amenity":"cafe"},"issues_remaining":1,"feedback":"Missing name","step_count":0}}'
+```
+
+### `/predict` modes (no-login friendly)
+
+- `strategy=auto` (default): tries local model first (if configured), then falls back to deterministic rule policy
+- `strategy=local`: requires local model, returns `503` if unavailable
+- `strategy=rule`: deterministic rule policy only
+
+Environment variables:
+
+- `OSM_PREDICT_MODE` = `auto|local|rule` (default `auto`)
+- `OSM_LOCAL_MODEL` = local/public HF model id or path (optional)
+- `OSM_LOCAL_DEVICE` = `cuda|cpu` (default `cuda`)
+
+### Error response envelope
+
+All API errors use a structured JSON envelope:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "not_found",
+    "message": "Not Found",
+    "request_id": "..."
+  }
+}
 ```
 
 ---
