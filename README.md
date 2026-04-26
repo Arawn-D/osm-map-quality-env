@@ -54,6 +54,16 @@ curl -X POST /grader -d '{"task_id":"task_hard"}'
 
 ## System Architecture
 
+```mermaid
+graph TD
+    A[Agent: Qwen2.5-3B-GRPO] -->|Action: JSON| B(OSM Environment)
+    B -->|Observation: Partial Tags| A
+    B -->|Grader: 6-Axis Score| C{Reward Engine}
+    C -->|Feedback| A
+    C -->|Reward: 0.05 - 1.32| D[GRPO Trainer]
+    D -->|Update Weights| A
+```
+
 ```
 Agent → POST /reset → Partial Observation
      → POST /step  → Reward + Feedback + Tag Reveals + Cascading Discovery
